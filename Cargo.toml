@@ -2,6 +2,7 @@
 members = [
     "crates/winportkill-core",
     "crates/winportkill-server",
+    "crates/winportkill-gui",
     ".",  # TUI 主程序
 ]
 resolver = "3"

@@ -1,0 +1,14 @@
+[package]
+name = "winportkill-gui"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "winportkill-gui"
+path = "src/main.rs"
+
+[dependencies]
+winportkill-core = { path = "../winportkill-core" }
+eframe = "0.31"
+egui = "0.31"
+egui_extras = "0.31"
