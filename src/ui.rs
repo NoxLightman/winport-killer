@@ -138,10 +138,10 @@ pub fn draw(f: &mut Frame, app: &App) {
 
 /// 绘制顶部信息栏：logo | 文字标题 | 统计消息 | 时钟
 fn draw_top_bar(f: &mut Frame, app: &App, area: Rect) {
-    let total_procs = app.entries.len();
-    let tcp_count = app.entries.iter().filter(|e| e.proto.contains("TCP")).count();
-    let udp_count = app.entries.iter().filter(|e| e.proto.contains("UDP")).count();
-    let total_mem_mb: f64 = app.entries.iter().map(|e| e.memory as f64).sum::<f64>() / 1024.0 / 1024.0;
+    let total_procs = app.stats.total_procs;
+    let tcp_count = app.stats.tcp_count;
+    let udp_count = app.stats.udp_count;
+    let total_mem_mb: f64 = app.stats.total_mem_bytes as f64 / 1024.0 / 1024.0;
 
     // 四栏：logo | 标题 | 统计 | 时钟（固定宽度）
     let cols = Layout::default()
