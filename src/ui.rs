@@ -212,8 +212,13 @@ fn render_figlet_clock(area: Rect, buf: &mut ratatui::buffer::Buffer) {
     let sec = s % 60;
     let time_str = format!("{:02}:{:02}:{:02}", h, m, sec);
 
-    let font = figlet_rs::FIGfont::standard().unwrap();
-    let figure = match font.convert(&time_str) {
+    // 缓存 FIGfont，避免每秒重新解析
+    use std::sync::LazyLock;
+    static FONT: LazyLock<figlet_rs::FIGfont> = LazyLock::new(|| {
+        figlet_rs::FIGfont::standard().unwrap()
+    });
+
+    let figure = match FONT.convert(&time_str) {
         Some(f) => f,
         None => return,
     };
