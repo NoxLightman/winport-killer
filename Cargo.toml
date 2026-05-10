@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/winportkill-core",
+    "crates/winportkill-server",
     ".",  # TUI 主程序
 ]
 resolver = "3"
@@ -12,6 +13,11 @@ edition = "2024"
 
 [dependencies]
 winportkill-core = { path = "crates/winportkill-core" }
+winportkill-server = { path = "crates/winportkill-server" }
 ratatui = "0.29"
 crossterm = "0.28"
 figlet-rs = "0.1"
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"
+axum = "0.8"

@@ -2,6 +2,7 @@ mod app;
 mod ui;
 
 use app::App;
+use clap::Parser;
 use crossterm::{
     event::{self, Event, KeyEventKind},
     execute,
@@ -11,58 +12,84 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use std::time::{Duration, Instant};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 开启 raw mode：关闭终端默认行为（按键回显、Ctrl+C 直接退出等），
-    // 让程序完全掌控输入输出
-    enable_raw_mode()?;
+/// WinPortKill — Windows 端口进程管理工具
+#[derive(Parser)]
+#[command(name = "winportkill", version, about = "Windows 端口进程管理工具")]
+struct Cli {
+    /// 启动 HTTP server 模式（为 IDE 插件提供 API）
+    #[arg(long)]
+    serve: Option<u16>,
 
-    // 切换到备用屏幕缓冲区，退出时原终端内容自动恢复，不会留下乱码
+    /// 仅输出一次 JSON 格式的端口列表（用于脚本集成）
+    #[arg(long)]
+    json: bool,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
+
+    // --json 模式：输出一次 JSON 后退出
+    if cli.json {
+        let entries = winportkill_core::scan();
+        println!("{}", serde_json::to_string_pretty(&entries)?);
+        return Ok(());
+    }
+
+    // --serve 模式：启动 HTTP server
+    if let Some(port) = cli.serve {
+        let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+        println!("WinPortKill server running at http://{}", addr);
+        println!("API: /ports  /stats  /kill/:pid  /ports/filter/:keyword  /ws");
+        tokio::runtime::Runtime::new()?.block_on(async {
+            let app = winportkill_server::create_app();
+            let listener = tokio::net::TcpListener::bind(addr).await?;
+            axum::serve(listener, app).await?;
+            Ok::<_, Box<dyn std::error::Error>>(())
+        })?;
+        return Ok(());
+    }
+
+    // 默认：TUI 模式
+    run_tui()?;
+    Ok(())
+}
+
+fn run_tui() -> Result<(), Box<dyn std::error::Error>> {
+    enable_raw_mode()?;
     execute!(std::io::stdout(), EnterAlternateScreen)?;
 
-    // 创建 ratatui 终端后端，基于 crossterm 实现跨平台渲染
     let backend = CrosstermBackend::new(std::io::stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    // 初始化应用状态（首次 refresh 加载所有端口和进程数据）
     let mut app = App::new();
 
-    // UI 刷新间隔：每秒重绘（时钟按秒更新）
     let ui_tick = Duration::from_secs(1);
-    // 进程数据刷新间隔：每 10 秒重新拉取端口和进程数据
     let data_tick = Duration::from_secs(10);
     let mut last_ui_tick = Instant::now();
     let mut last_data_tick = Instant::now();
 
-    // 主循环：绘制界面 → 等待输入 → 刷新数据，周而复始
     while !app.should_quit {
-        // 将当前 app 状态渲染到屏幕
         terminal.draw(|f| ui::draw(f, &app))?;
 
-        // poll 超时取距离下次 UI tick 的剩余时间
         let timeout = ui_tick.saturating_sub(last_ui_tick.elapsed());
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
-                // Windows 上 crossterm 会对每次按键同时触发 Press 和 Release 事件，
-                // 只处理 Press 避免按键被识别两次
                 if key.kind == KeyEventKind::Press {
                     app.handle_key(key);
                 }
             }
         }
 
-        // 每秒触发一次重绘周期（时钟会自动更新）
         if last_ui_tick.elapsed() >= ui_tick {
             last_ui_tick = Instant::now();
         }
 
-        // 每 10 秒重新拉取进程数据
         if last_data_tick.elapsed() >= data_tick {
             app.refresh();
             last_data_tick = Instant::now();
         }
     }
 
-    // 退出清理：恢复终端到正常状态
     disable_raw_mode()?;
     execute!(std::io::stdout(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
