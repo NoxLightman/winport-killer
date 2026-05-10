@@ -1,143 +1,395 @@
 use crate::app::App;
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect, Alignment},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{
+        Block, BorderType, Borders, Cell, HighlightSpacing, Row, Scrollbar,
+        ScrollbarOrientation, ScrollbarState, Table, TableState, Widget,
+    },
 };
 
-/// 主渲染函数：将界面分为三个区域（过滤栏、列表、状态栏）并分别绘制
+// ── 统一配色 ──────────────────────────────────────────────
+const ACCENT: Color = Color::Cyan;
+const ACCENT_BG: Color = Color::Rgb(30, 60, 90);
+const DIM_FG: Color = Color::Rgb(80, 80, 80);
+const HEADER_BG: Color = Color::Rgb(40, 44, 52);
+const HEADER_FG: Color = Color::White;
+const BORDER_ACTIVE: Color = Color::Cyan;
+const BORDER_IDLE: Color = Color::Rgb(60, 64, 72);
+const TOP_BAR_BG: Color = Color::Rgb(20, 22, 28);
+const TCP_COLOR: Color = Color::Cyan;
+const UDP_COLOR: Color = Color::Green;
+const PORT_COLOR: Color = Color::Yellow;
+const MEM_COLOR: Color = Color::Magenta;
+
+/// 灯泡 Logo（8宽 x 7高，黄色系色块渲染）
+struct BulbLogo;
+
+const BULB_BODY: Color = Color::Rgb(255, 220, 50);
+const BULB_GLOW: Color = Color::Rgb(255, 255, 150);
+const BULB_DARK: Color = Color::Rgb(180, 140, 20);
+const BULB_BASE: Color = Color::Rgb(120, 100, 60);
+const BULB_BASE_DARK: Color = Color::Rgb(80, 70, 40);
+
+impl Widget for BulbLogo {
+    fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer) {
+        // 灯泡造型：上方圆形灯泡 + 下方螺口底座
+        //   xxxx
+        //  xXxXXx
+        // xXXXXXXx   ← 发光区域
+        // xXXXXXXx
+        //  xXxXXx
+        //   xBBx     ← 底座
+        //   xDDx     ← 底座底
+        const ART: [&str; 7] = [
+            "  xxxx  ",
+            " xXxXXx ",
+            "xXXXXXXx",
+            "xXxXxXXx",
+            " xXxXXx ",
+            "  xBBx  ",
+            "  xDDx  ",
+        ];
+        const COLORS: [[Color; 8]; 7] = [
+            [TOP_BAR_BG, TOP_BAR_BG, BULB_DARK, BULB_BODY, BULB_BODY, BULB_DARK, TOP_BAR_BG, TOP_BAR_BG],
+            [TOP_BAR_BG, BULB_DARK, BULB_BODY, BULB_GLOW, BULB_BODY, BULB_GLOW, BULB_DARK, TOP_BAR_BG],
+            [BULB_DARK, BULB_BODY, BULB_GLOW, BULB_GLOW, BULB_GLOW, BULB_GLOW, BULB_BODY, BULB_DARK],
+            [BULB_DARK, BULB_BODY, BULB_GLOW, BULB_BODY, BULB_GLOW, BULB_BODY, BULB_GLOW, BULB_DARK],
+            [TOP_BAR_BG, BULB_DARK, BULB_BODY, BULB_GLOW, BULB_BODY, BULB_GLOW, BULB_DARK, TOP_BAR_BG],
+            [TOP_BAR_BG, TOP_BAR_BG, BULB_BASE, BULB_BASE, BULB_BASE, BULB_BASE, TOP_BAR_BG, TOP_BAR_BG],
+            [TOP_BAR_BG, TOP_BAR_BG, BULB_BASE_DARK, BULB_BASE_DARK, BULB_BASE_DARK, BULB_BASE_DARK, TOP_BAR_BG, TOP_BAR_BG],
+        ];
+        for (row_idx, line) in ART.iter().enumerate() {
+            let y = area.y + row_idx as u16;
+            if y >= area.bottom() { break; }
+            for (col_idx, ch) in line.chars().enumerate() {
+                let x = area.x + col_idx as u16;
+                if x >= area.right() { break; }
+                if ch != ' ' {
+                    let cell = buf.cell_mut((x, y)).unwrap();
+                    cell.set_style(Style::default().bg(COLORS[row_idx][col_idx]));
+                    cell.set_char(' ');
+                }
+            }
+        }
+    }
+}
+
+/// WinPortKill ASCII Art 标题（4行高）
+struct TitleAsciiArt;
+
+impl Widget for TitleAsciiArt {
+    fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer) {
+        const ART: [&str; 4] = [
+            "__      ___      ___         _   _  ___ _ _ ",
+            " \\ \\    / (_)_ _ | _ \\___ _ _| |_| |/ (_| | |",
+            "  \\ \\/\\/ /| | ' \\|  _/ _ | '_|  _| ' <| | | |",
+            "   \\_/\\_/ |_|_||_|_| \\___|_|  \\__|_|\\_|_|_|_|",
+        ];
+        let v_off = if area.height > 4 { (area.height - 4) / 2 + 1} else { 0 };
+        let art_w = ART[0].chars().count() as u16;
+        let h_off = if area.width > art_w { (area.width - art_w) / 2 } else { 0 };
+        for (row_idx, line) in ART.iter().enumerate() {
+            let y = area.y + v_off + row_idx as u16;
+            if y >= area.bottom() { break; }
+            let len = line.chars().count();
+            for (col_idx, ch) in line.chars().enumerate() {
+                let x = area.x + h_off + col_idx as u16;
+                if x >= area.right() { break; }
+                if ch != ' ' {
+                    let cell = buf.cell_mut((x, y)).unwrap();
+                    let t = col_idx as f32 / len.max(1) as f32;
+                    // 黄色系渐变：左端暗金 → 右端亮黄白
+                    let r = (180.0 + (255.0 - 180.0) * t) as u8;
+                    let g = (140.0 + (240.0 - 140.0) * t) as u8;
+                    let b = (20.0 + (100.0 - 20.0) * t) as u8;
+                    cell.set_style(Style::default().fg(Color::Rgb(r, g, b)).add_modifier(Modifier::BOLD));
+                    cell.set_char(ch);
+                }
+            }
+        }
+    }
+}
+
+/// 主渲染函数
 pub fn draw(f: &mut Frame, app: &App) {
+    f.render_widget(
+        Block::new().style(Style::default().bg(TOP_BAR_BG)),
+        f.area(),
+    );
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // 过滤栏：3 行高（含边框）
-            Constraint::Min(5),   // 列表区：至少 5 行，占满剩余空间
-            Constraint::Length(1), // 状态栏：1 行高
+            Constraint::Length(7), // 顶部信息栏
+            Constraint::Length(3), // 过滤栏
+            Constraint::Min(5),   // 列表区
+            Constraint::Length(1), // 状态栏
         ])
         .split(f.area());
 
-    draw_filter(f, app, chunks[0]);
-    draw_list(f, app, chunks[1]);
-    draw_status(f, app, chunks[2]);
+    draw_top_bar(f, app, chunks[0]);
+    draw_filter(f, app, chunks[1]);
+    draw_table(f, app, chunks[2]);
+    draw_status(f, app, chunks[3]);
 }
 
-/// 绘制过滤栏：显示当前过滤关键字或提示文字
-/// 过滤模式激活时文字为黄色，否则为灰色提示
+/// 绘制顶部信息栏：logo | 文字标题 | 统计消息 | 时钟
+fn draw_top_bar(f: &mut Frame, app: &App, area: Rect) {
+    let total_procs = app.entries.len();
+    let tcp_count = app.entries.iter().filter(|e| e.proto.contains("TCP")).count();
+    let udp_count = app.entries.iter().filter(|e| e.proto.contains("UDP")).count();
+    let total_mem_mb: f64 = app.entries.iter().map(|e| e.memory as f64).sum::<f64>() / 1024.0 / 1024.0;
+
+    // 四栏：logo | 标题 | 统计 | 时钟（固定宽度）
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(10),  // logo
+            Constraint::Length(48),  // ASCII art 标题
+            Constraint::Length(20),  // 统计消息
+            Constraint::Length(56),  // figlet 时钟
+        ])
+        .split(area);
+
+    // 第一栏：logo，垂直居中
+    let y_off = if cols[0].height > 7 { (cols[0].height - 7) / 2 } else { 0 };
+    let logo_area = Rect::new(cols[0].x + 1, cols[0].y + y_off, 8, 7);
+    BulbLogo.render(logo_area, f.buffer_mut());
+
+    // 第二栏：ASCII art 标题
+    TitleAsciiArt.render(cols[1], f.buffer_mut());
+
+    // 第三栏：统计消息，垂直居中下移1行
+    let mid_y = if cols[2].height > 4 { (cols[2].height - 4) / 2 + 1 } else { 0 };
+
+    let mem_val = if total_mem_mb >= 1024.0 {
+        format!("{:.1} GB", total_mem_mb / 1024.0)
+    } else {
+        format!("{:.0} MB", total_mem_mb)
+    };
+
+    let stat_lines: Vec<Line> = vec![
+        Line::from(vec![
+            Span::styled("\u{1F527} ", Style::default()),
+            Span::styled(format!("Procs:{}", total_procs), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("\u{1F310} ", Style::default()),
+            Span::styled(format!("TCP:{}", tcp_count), Style::default().fg(TCP_COLOR).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("\u{1F4E1} ", Style::default()),
+            Span::styled(format!("UDP:{}", udp_count), Style::default().fg(UDP_COLOR).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("\u{1F4BE} ", Style::default()),
+            Span::styled(format!("Mem:{}", mem_val), Style::default().fg(MEM_COLOR).add_modifier(Modifier::BOLD)),
+        ]),
+    ];
+
+    let stats = ratatui::widgets::Paragraph::new(stat_lines)
+        .style(Style::default().bg(TOP_BAR_BG))
+        .alignment(Alignment::Left);
+    let stats_area = Rect::new(cols[2].x + 1, cols[2].y + mid_y, cols[2].width.saturating_sub(1), 4);
+    f.render_widget(stats, stats_area);
+
+    // 第四栏：figlet 炫彩时钟
+    render_figlet_clock(cols[3], f.buffer_mut());
+}
+
+/// 炫彩 figlet 时钟：用 figlet_rs 渲染 ASCII art 时间，逐字符彩虹渐变
+fn render_figlet_clock(area: Rect, buf: &mut ratatui::buffer::Buffer) {
+    if area.width < 20 || area.height < 3 { return; }
+
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let d = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    let s = d.as_secs();
+    let h = ((s / 3600 % 24) + 8) % 24;
+    let m = s / 60 % 60;
+    let sec = s % 60;
+    let time_str = format!("{:02}:{:02}:{:02}", h, m, sec);
+
+    let font = figlet_rs::FIGfont::standard().unwrap();
+    let figure = match font.convert(&time_str) {
+        Some(f) => f,
+        None => return,
+    };
+    let ascii = figure.to_string();
+    let lines: Vec<&str> = ascii.lines().collect();
+    let max_width = lines.iter().map(|l| l.chars().count()).max().unwrap_or(1);
+
+    // 垂直居中偏移
+    let art_h = lines.len() as u16;
+    let y_off = if area.height > art_h { (area.height - art_h) / 2 + 1 } else { 0 };
+    // 水平居中偏移
+    let x_off = if area.width as usize > max_width { (area.width as usize - max_width) / 2 } else { 0 };
+
+    for (row_idx, line) in lines.iter().enumerate() {
+        let y = area.y + y_off + row_idx as u16;
+        if y >= area.bottom() { break; }
+        for (col_idx, ch) in line.chars().enumerate() {
+            if ch == ' ' { continue; }
+            let x = area.x + (x_off + col_idx) as u16;
+            if x >= area.right() { break; }
+            let cell = buf.cell_mut((x, y)).unwrap();
+            // fg 文字渲染，炫彩渐变流动
+            let ratio = col_idx as f32 / max_width as f32;
+            let hue = ((ratio * 360.0) + sec as f32 * 6.0) % 360.0;
+            let h_rad = hue * std::f32::consts::PI / 180.0;
+            cell.set_style(Style::default().fg(Color::Rgb(
+                (128.0 + 127.0 * h_rad.cos()) as u8,
+                (128.0 + 127.0 * (h_rad + 2.094).cos()) as u8,
+                (128.0 + 127.0 * (h_rad + 4.189).cos()) as u8,
+            )));
+            cell.set_char(ch);
+        }
+    }
+}
+
+/// 绘制过滤栏
 fn draw_filter(f: &mut Frame, app: &App, area: Rect) {
-    let style = if app.filter_active {
-        Style::default().fg(Color::Yellow)
+    let border_color = if app.filter_active { BORDER_ACTIVE } else { BORDER_IDLE };
+
+    let (filter_text, text_style) = if app.filter.is_empty() && !app.filter_active {
+        ("Press / to filter...".to_string(), Style::default().fg(DIM_FG))
     } else {
-        Style::default().fg(Color::DarkGray)
+        (app.filter.clone(), Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))
     };
 
-    let filter_text = if app.filter.is_empty() && !app.filter_active {
-        "Press / to filter...".to_string()
-    } else {
-        app.filter.clone()
-    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(border_color));
 
-    let paragraph = Paragraph::new(format!(" Filter: {}", filter_text))
-        .style(style)
-        .block(Block::default().borders(Borders::ALL).title("WinPortKill"));
+    let search_icon = Span::styled(
+        " / ",
+        Style::default()
+            .fg(if app.filter_active { ACCENT } else { DIM_FG })
+            .add_modifier(Modifier::BOLD),
+    );
+    let paragraph = ratatui::widgets::Paragraph::new(Line::from(vec![search_icon, Span::styled(filter_text, text_style)]))
+        .block(block);
     f.render_widget(paragraph, area);
 }
 
-/// 绘制进程/端口列表：表头 + 数据行
-/// 选中行有深灰背景 + 加粗 + ">>" 前缀
-/// 颜色规则：TCP/TCP6 蓝色，UDP/UDP6 绿色，端口号黄色（无端口时灰色），内存紫色
-fn draw_list(f: &mut Frame, app: &App, area: Rect) {
-    // 表头行
-    let header = ListItem::new(Line::from(vec![
-        Span::styled("Proto  ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::styled("Addr          ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::styled("Port     ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::styled("PID      ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::styled("Mem(MB)    ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::styled("Process", Style::default().add_modifier(Modifier::BOLD)),
-    ]));
+/// 绘制进程/端口表格
+fn draw_table(f: &mut Frame, app: &App, area: Rect) {
+    let total = app.filtered.len();
+    let title = format!(" Processes ({total}) ");
 
-    // 数据行：表头 + 所有过滤后的条目
-    let items: Vec<ListItem> = std::iter::once(header)
-        .chain(app.filtered.iter().map(|entry| {
-            // 内存从字节转换为 MB
-            let mem_mb = entry.memory as f64 / 1024.0 / 1024.0;
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(BORDER_IDLE))
+        .title(title)
+        .title_style(Style::default().fg(Color::White));
 
-            // 协议颜色：TCP 系蓝色，UDP 系绿色，无协议灰色
-            let proto_color = match entry.proto.as_str() {
-                "TCP" | "TCP6" => Color::Cyan,
-                "UDP" | "UDP6" => Color::Green,
-                _ => Color::DarkGray,
-            };
+    let constraints = [
+        Constraint::Length(7),
+        Constraint::Length(16),
+        Constraint::Length(7),
+        Constraint::Length(8),
+        Constraint::Length(10),
+        Constraint::Min(10),
+    ];
 
-            // 端口颜色：有端口黄色，无端口（"-")灰色
-            let port_style = if entry.port == "-" {
-                Style::default().fg(Color::DarkGray)
-            } else {
-                Style::default().fg(Color::Yellow)
-            };
+    let header_cells = ["Proto", "Addr", "Port", "PID", "Mem(MB)", "Process"]
+        .into_iter()
+        .map(|h| Cell::new(h).style(
+            Style::default().fg(HEADER_FG).bg(HEADER_BG).add_modifier(Modifier::BOLD),
+        ));
+    let header = Row::new(header_cells)
+        .style(Style::default().bg(HEADER_BG))
+        .height(1)
+        .bottom_margin(0);
 
-            ListItem::new(Line::from(vec![
-                Span::styled(format!("{:<6}", entry.proto), Style::default().fg(proto_color)),
-                Span::raw(format!("{:<14}", entry.local_addr)),
-                Span::styled(format!("{:<9}", entry.port), port_style),
-                Span::raw(format!("{:<9}", entry.pid)),
-                Span::styled(format!("{:<11.1}", mem_mb), Style::default().fg(Color::Magenta)),
-                Span::raw(entry.name.clone()),
-            ]))
-        }))
-        .collect();
+    let rows: Vec<Row> = app.filtered.iter().map(|entry| {
+        let has_port = entry.port != "-";
+        let row_fg = if has_port { Color::White } else { DIM_FG };
+        let proto_color = match entry.proto.as_str() {
+            "TCP" | "TCP6" => TCP_COLOR,
+            "UDP" | "UDP6" => UDP_COLOR,
+            _ => DIM_FG,
+        };
+        let port_style = if has_port { Style::default().fg(PORT_COLOR) } else { Style::default().fg(DIM_FG) };
+        let mem_mb = entry.memory as f64 / 1024.0 / 1024.0;
+        Row::new(vec![
+            Cell::new(entry.proto.clone()).style(Style::default().fg(proto_color)),
+            Cell::new(entry.local_addr.clone()).style(Style::default().fg(row_fg)),
+            Cell::new(entry.port.clone()).style(port_style),
+            Cell::new(entry.pid.to_string()).style(Style::default().fg(row_fg)),
+            Cell::new(format!("{mem_mb:.1}")).style(Style::default().fg(MEM_COLOR)),
+            Cell::new(entry.name.clone()).style(Style::default().fg(row_fg)),
+        ]).height(1)
+    }).collect();
 
-    let list = List::new(items)
-        // 选中行样式：深灰背景 + 加粗
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        )
-        // 选中行前缀符号
-        .highlight_symbol(">> ")
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(format!(" Processes ({}) ", app.filtered.len())),
+    let table = Table::new(rows, constraints)
+        .header(header)
+        .block(block)
+        .highlight_symbol("\u{2503} ")
+        .highlight_spacing(HighlightSpacing::Always)
+        .row_highlight_style(
+            Style::default().bg(ACCENT_BG).fg(Color::White).add_modifier(Modifier::BOLD),
         );
 
-    // ListState 控制选中行，+1 是因为第 0 行是表头
-    let mut state = ListState::default();
+    let mut state = TableState::default();
     if !app.filtered.is_empty() {
-        state.select(Some(app.selected + 1));
+        state.select(Some(app.selected));
+        let visible_rows = area.height.saturating_sub(4) as usize;
+        if visible_rows > 0 {
+            let mid = visible_rows / 2;
+            let offset = if app.selected > mid { app.selected - mid } else { 0 };
+            state.select(Some(app.selected));
+            *state.offset_mut() = offset;
+        }
     }
-    f.render_stateful_widget(list, area, &mut state);
+    f.render_stateful_widget(table, area, &mut state);
+
+    if total > 0 {
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .thumb_style(Style::default().fg(ACCENT))
+            .track_style(Style::default().fg(Color::Rgb(40, 44, 52)));
+        let mut scroll_state = ScrollbarState::new(total).position(app.selected);
+        f.render_stateful_widget(scrollbar, area, &mut scroll_state);
+    }
 }
 
-/// 绘制状态栏：显示操作结果消息 + 快捷键提示
-/// 过滤模式时显示过滤相关提示，正常模式时显示完整快捷键列表
-/// 消息颜色：成功绿色，失败红色，普通灰色
+/// 绘制状态栏（快捷键提示）
 fn draw_status(f: &mut Frame, app: &App, area: Rect) {
-    let help = if app.filter_active {
-        "[Enter/Esc] Stop filtering  [Type] Filter"
+    let keys = if app.filter_active {
+        vec![("Enter/Esc", "Stop"), ("Type", "Filter")]
     } else {
-        "[q]Quit  [k]Kill  [/]Filter  [r]Refresh  [↑↓]Navigate"
+        vec![
+            ("q", "Quit"), ("k", "Kill"), ("/", "Filter"),
+            ("r", "Refresh"), ("\u{2191}\u{2193}", "Nav"), ("PgUp/PgDn", "Jump"),
+        ]
     };
 
-    // 如果有状态消息，拼接在快捷键提示前面
-    let msg = if app.status_msg.is_empty() {
-        help.to_string()
+    let mut spans: Vec<Span> = Vec::new();
+    for (i, (key, desc)) in keys.iter().enumerate() {
+        if i > 0 { spans.push(Span::styled(" ", Style::default())); }
+        spans.push(Span::styled(format!("[{key}]"), Style::default().fg(Color::Rgb(150,150,160)).add_modifier(Modifier::BOLD)));
+        spans.push(Span::styled(format!(" {desc}"), Style::default().fg(DIM_FG)));
+    }
+
+    let line = if app.status_msg.is_empty() {
+        Line::from(spans)
     } else {
-        format!("{}  |  {}", app.status_msg, help)
+        let msg_color = if app.status_msg.contains("Failed") || app.status_msg.contains("not found") { Color::Red } else { Color::Green };
+        let mut msg_spans = vec![
+            Span::styled(format!(" {} ", app.status_msg), Style::default().fg(msg_color).add_modifier(Modifier::BOLD)),
+            Span::styled("|", Style::default().fg(Color::Rgb(60, 64, 72))),
+            Span::styled(" ", Style::default()),
+        ];
+        msg_spans.extend(spans);
+        Line::from(msg_spans)
     };
 
-    // 消息颜色：包含 "Failed" 或 "not found" 为红色，有消息为绿色，无消息为灰色
-    let style = if app.status_msg.contains("Failed") || app.status_msg.contains("not found") {
-        Style::default().fg(Color::Red)
-    } else if !app.status_msg.is_empty() {
-        Style::default().fg(Color::Green)
-    } else {
-        Style::default().fg(Color::DarkGray)
-    };
-
-    let paragraph = Paragraph::new(format!(" {}", msg)).style(style);
+    let paragraph = ratatui::widgets::Paragraph::new(line)
+        .style(Style::default().bg(Color::Rgb(28, 30, 36)))
+        .alignment(Alignment::Center);
     f.render_widget(paragraph, area);
 }
