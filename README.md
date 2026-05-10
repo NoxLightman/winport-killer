@@ -2,6 +2,14 @@
 
 Windows 端口进程管理 TUI 工具 — 查看端口占用、搜索过滤、一键 kill 进程。
 
+## 特性
+
+- 黄色灯泡 Logo + ASCII art 标题 + 炫彩 figlet 时钟
+- 实时统计：进程数、TCP/UDP 连接数、内存占用
+- 按协议/端口/PID/进程名/IP 多字段过滤
+- 一键 kill 进程（需管理员权限终止受保护进程）
+- 时钟每秒更新，进程列表每 10 秒自动刷新
+
 ## 安装
 
 ```bash
@@ -28,17 +36,19 @@ winportkill.exe
 ## 界面
 
 ```
-┌─ WinPortKill ─────────────────────────────────────────┐
-│ Filter: [___________]                                 │
-│ Proto  Local Address        PID   Process             │
-│ TCP    0.0.0.0:80           1234  nginx.exe           │
-│ TCP    0.0.0.0:443          1234  nginx.exe           │
-│ TCP    127.0.0.1:3000       5678  node.exe      ←选中 │
-│ UDP    0.0.0.0:5353         999   svchost.exe         │
-│                                                        │
-│ [q]Quit [k]Kill [/]Filter [r]Refresh                  │
-└────────────────────────────────────────────────────────┘
+┌─ 💡 Logo | WinPortKill ASCII Art | 📊 Stats | 🕐 Clock ──────────────────┐
+│ / Filter: [___________]                                                  │
+│ Proto  Addr       Port   PID    Mem(MB)  Process                        │
+│ TCP   0.0.0.0     80     1234   12.5     nginx.exe                      │
+│ TCP   0.0.0.0     443    1234   12.5     nginx.exe                      │
+│ TCP   127.0.0.1   3000   5678   45.2     node.exe               ←选中  │
+│ UDP   0.0.0.0     5353   999    1.8      svchost.exe                    │
+│                                                                          │
+│ [q]Quit [k]Kill [/]Filter [r]Refresh [↑↓]Nav [PgUp/PgDn]Jump           │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
+
+顶部信息栏四栏布局：灯泡 Logo → 黄色渐变 ASCII art 标题 → 统计数据 → 炫彩 figlet 时钟。
 
 ## 快捷键
 
@@ -72,6 +82,7 @@ winportkill.exe
 
 Kill 成功后列表会自动刷新。
 
-## 自动刷新
+## 刷新策略
 
-每 3 秒自动刷新端口列表，也可按 `r` 手动刷新。
+- **时钟**：每秒更新（1s UI tick）
+- **进程列表**：每 10 秒自动刷新数据，也可按 `r` 手动刷新
