@@ -1,0 +1,72 @@
+{
+  "name": "winportkill-vscode",
+  "displayName": "WinPortKill",
+  "description": "Inspect local Windows listening ports and processes inside VS Code.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onView:winportkill.sidebar",
+    "onCommand:winportkill.refresh",
+    "onCommand:winportkill.killSelected"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "winportkill",
+          "title": "WinPortKill",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "winportkill": [
+        {
+          "type": "webview",
+          "id": "winportkill.sidebar",
+          "name": "Inspector"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "winportkill.refresh",
+        "title": "WinPortKill: Refresh"
+      },
+      {
+        "command": "winportkill.killSelected",
+        "title": "WinPortKill: Kill Selected"
+      }
+    ],
+    "configuration": {
+      "title": "WinPortKill",
+      "properties": {
+        "winportkill.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 3,
+          "description": "Refresh interval for the WinPortKill panel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p ./",
+    "watch": "tsc -w -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.100.0",
+    "typescript": "^5.8.3"
+  }
+}

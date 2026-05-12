@@ -1,2 +1,5 @@
 /target
 .idea
+.vscode-extension/node_modules
+.vscode-extension/dist
+.vscode-extension/bin
