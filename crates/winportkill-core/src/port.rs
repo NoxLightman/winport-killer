@@ -1,9 +1,8 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
 use serde::Serialize;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use windows::Win32::NetworkManagement::IpHelper::{
-    GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCPROW_OWNER_PID, MIB_TCP6ROW_OWNER_PID,
-    MIB_UDPROW_OWNER_PID, MIB_UDP6ROW_OWNER_PID, TCP_TABLE_OWNER_PID_LISTENER,
-    UDP_TABLE_OWNER_PID,
+    GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP6ROW_OWNER_PID, MIB_TCPROW_OWNER_PID,
+    MIB_UDP6ROW_OWNER_PID, MIB_UDPROW_OWNER_PID, TCP_TABLE_OWNER_PID_LISTENER, UDP_TABLE_OWNER_PID,
 };
 use windows::Win32::Networking::WinSock::AF_INET;
 
@@ -45,7 +44,14 @@ where
 
 fn query_tcp4() -> Vec<PortEntry> {
     alloc_and_query(|size, buf| unsafe {
-        GetExtendedTcpTable(buf, size, false, AF_INET.0 as u32, TCP_TABLE_OWNER_PID_LISTENER, 0)
+        GetExtendedTcpTable(
+            buf,
+            size,
+            false,
+            AF_INET.0 as u32,
+            TCP_TABLE_OWNER_PID_LISTENER,
+            0,
+        )
     })
     .map_or(Vec::new(), |buf| {
         let num_entries = u32::from_ne_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
@@ -55,7 +61,12 @@ fn query_tcp4() -> Vec<PortEntry> {
                 let r = &*rows.add(i);
                 let ip = u32::from_be(r.dwLocalAddr);
                 let port = u16::from_be(r.dwLocalPort as u16);
-                Some(PortEntry { proto: "TCP".into(), local_addr: Ipv4Addr::from(ip).to_string(), port, pid: r.dwOwningPid })
+                Some(PortEntry {
+                    proto: "TCP".into(),
+                    local_addr: Ipv4Addr::from(ip).to_string(),
+                    port,
+                    pid: r.dwOwningPid,
+                })
             })
             .collect()
     })
@@ -73,7 +84,12 @@ fn query_tcp6() -> Vec<PortEntry> {
                 let r = &*rows.add(i);
                 let ip = Ipv6Addr::from(r.ucLocalAddr);
                 let port = u16::from_be(r.dwLocalPort as u16);
-                Some(PortEntry { proto: "TCP6".into(), local_addr: ip.to_string(), port, pid: r.dwOwningPid })
+                Some(PortEntry {
+                    proto: "TCP6".into(),
+                    local_addr: ip.to_string(),
+                    port,
+                    pid: r.dwOwningPid,
+                })
             })
             .collect()
     })
@@ -91,7 +107,12 @@ fn query_udp4() -> Vec<PortEntry> {
                 let r = &*rows.add(i);
                 let ip = u32::from_be(r.dwLocalAddr);
                 let port = u16::from_be(r.dwLocalPort as u16);
-                Some(PortEntry { proto: "UDP".into(), local_addr: Ipv4Addr::from(ip).to_string(), port, pid: r.dwOwningPid })
+                Some(PortEntry {
+                    proto: "UDP".into(),
+                    local_addr: Ipv4Addr::from(ip).to_string(),
+                    port,
+                    pid: r.dwOwningPid,
+                })
             })
             .collect()
     })
@@ -109,7 +130,12 @@ fn query_udp6() -> Vec<PortEntry> {
                 let r = &*rows.add(i);
                 let ip = Ipv6Addr::from(r.ucLocalAddr);
                 let port = u16::from_be(r.dwLocalPort as u16);
-                Some(PortEntry { proto: "UDP6".into(), local_addr: ip.to_string(), port, pid: r.dwOwningPid })
+                Some(PortEntry {
+                    proto: "UDP6".into(),
+                    local_addr: ip.to_string(),
+                    port,
+                    pid: r.dwOwningPid,
+                })
             })
             .collect()
     })
