@@ -214,8 +214,8 @@ fn render_figlet_clock(area: Rect, buf: &mut ratatui::buffer::Buffer) {
 
     // 缓存 FIGfont，避免每秒重新解析
     use std::sync::LazyLock;
-    static FONT: LazyLock<figlet_rs::FIGfont> = LazyLock::new(|| {
-        figlet_rs::FIGfont::standard().unwrap()
+    static FONT: LazyLock<figlet_rs::FIGlet> = LazyLock::new(|| {
+        figlet_rs::FIGlet::standard().unwrap()
     });
 
     let figure = match FONT.convert(&time_str) {
