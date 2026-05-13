@@ -47,6 +47,8 @@ import javax.swing.table.TableCellRenderer
 private const val COMPACT_THRESHOLD = 500
 private const val MEDIUM_THRESHOLD = 860
 
+// One table system is used across all sizes so selection, sorting, and row actions stay
+// consistent while only the visible columns change with the available width.
 private enum class LayoutBand {
     WIDE,
     MEDIUM,
@@ -238,6 +240,8 @@ class WinPortKillPanel(
             }
 
             LayoutBand.MEDIUM -> {
+                // Collapse address and port into a single endpoint column before dropping to the
+                // narrowest layout. This keeps the scan path short without hiding the PID.
                 portsModel.setColumnIdentifiers(arrayOf("Proto", "Endpoint", "PID", "Process", ""))
                 latestPorts.forEach { entry ->
                     portsModel.addRow(
@@ -254,6 +258,8 @@ class WinPortKillPanel(
             }
 
             LayoutBand.COMPACT -> {
+                // The compact band prioritizes a readable endpoint plus a row-level action. The
+                // full detail area below the table carries the fields that no longer fit inline.
                 portsModel.setColumnIdentifiers(arrayOf("Endpoint", "Process", ""))
                 latestPorts.forEach { entry ->
                     portsModel.addRow(
@@ -293,6 +299,8 @@ class WinPortKillPanel(
             }
 
             LayoutBand.MEDIUM -> {
+                // Medium width keeps the operational metrics visible and moves the verbose port
+                // list into the footer detail area.
                 processesModel.setColumnIdentifiers(arrayOf("PID", "TCP", "UDP", "Mem(MB)", "Process", ""))
                 latestProcesses.forEach { entry ->
                     processesModel.addRow(
@@ -310,6 +318,8 @@ class WinPortKillPanel(
             }
 
             LayoutBand.COMPACT -> {
+                // Keep PID visible in compact mode because it remains the most actionable process
+                // identifier when the user decides to terminate from a narrow tool window.
                 processesModel.setColumnIdentifiers(arrayOf("Process", "PID", "Bindings", ""))
                 latestProcesses.forEach { entry ->
                     processesModel.addRow(
@@ -345,6 +355,8 @@ class WinPortKillPanel(
         }
 
         if (currentBand == LayoutBand.COMPACT) {
+            // Stack the filter onto its own row only in the narrowest band so the mode switch and
+            // primary actions keep stable hit targets.
             toolbarPanel.add(
                 modePanel,
                 gbc(0, 0, weightx = 1.0, fill = GridBagConstraints.HORIZONTAL, insets = Insets(0, 0, 0, 6))
@@ -368,6 +380,8 @@ class WinPortKillPanel(
     }
 
     private fun relayoutFooter() {
+        // The footer remains permanently visible; row details absorb the information removed
+        // from narrower tables instead of opening a secondary dialog or card view.
         detailsLabel.isVisible = true
         detailArea.isVisible = true
         footerPanel.revalidate()
@@ -429,6 +443,8 @@ class WinPortKillPanel(
     }
 
     private fun resolveBand(): LayoutBand {
+        // Width-only banding keeps the layout transitions predictable inside the Tool Window,
+        // regardless of IDE theme, font scaling, or panel height.
         return when {
             width in 1..COMPACT_THRESHOLD -> LayoutBand.COMPACT
             width <= MEDIUM_THRESHOLD -> LayoutBand.MEDIUM

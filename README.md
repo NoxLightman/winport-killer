@@ -1,89 +1,104 @@
 # WinPortKill
 
-Windows 端口进程管理 TUI 工具 — 查看端口占用、搜索过滤、一键 kill 进程。
+English | [中文](./README.zh.md)
 
-## 特性
+WinPortKill is a Windows-first port and process inspection toolset built around a shared Rust core.
 
-- 黄色灯泡 Logo + ASCII art 标题 + 炫彩 figlet 时钟
-- 实时统计：进程数、TCP/UDP 连接数、内存占用
-- 按协议/端口/PID/进程名/IP 多字段过滤
-- 一键 kill 进程（需管理员权限终止受保护进程）
-- 时钟每秒更新，进程列表每 10 秒自动刷新
+The repository currently contains:
 
-![running-img1.png](images/running-img1.png)
-## 安装
+- a terminal UI binary
+- an HTTP sidecar mode for IDE integrations
+- an `egui` desktop GUI prototype
+- a VS Code extension
+- a JetBrains plugin MVP
 
-```bash
-cargo build --release
+## Current Scope
+
+- Platform: Windows for the actual port/process inspection flow
+- Core capabilities: list listening ports, aggregate by process, filter results, kill a PID
+- Shared backend: Rust crates under [crates](./crates)
+- IDE integrations: VS Code webview extension and JetBrains Tool Window
+
+## Workspace Layout
+
+- [Cargo.toml](./Cargo.toml): workspace root and top-level TUI binary
+- [src](./src): terminal UI entry and TUI state/rendering
+- [crates/winportkill-core](./crates/winportkill-core): Windows port scan, process aggregation, filtering, kill logic
+- [crates/winportkill-server](./crates/winportkill-server): Axum HTTP API and WebSocket stream
+- [crates/winportkill-gui](./crates/winportkill-gui): native `egui` desktop GUI
+- [.vscode-extension](./.vscode-extension): VS Code extension and webview UI
+- [jetbrains-plugin](./jetbrains-plugin): JetBrains plugin MVP
+- [docs](./docs): bilingual project and implementation guides
+
+## Quick Start
+
+```powershell
+cargo build
+cargo run -p winportkill
 ```
 
-编译产物在 `target/release/winportkill.exe`。
+Other common entrypoints:
 
-## 运行
-
-普通运行（仅查看端口，无法 kill 受保护进程）：
-
-```bash
-winportkill.exe
+```powershell
+cargo run -p winportkill -- --json
+cargo run -p winportkill -- --serve 3000
+cargo run -p winportkill-gui
 ```
 
-管理员运行（可 kill 任意进程）：
+## Runtime Modes
 
-```bash
-# 以管理员身份打开 PowerShell/CMD 后执行
-winportkill.exe
-```
+### Terminal UI
 
-## 界面
+The root package `winportkill` launches a `ratatui` interface by default.
 
-```
-┌─ 💡 Logo | WinPortKill ASCII Art | 📊 Stats | 🕐 Clock ──────────────────┐
-│ / Filter: [___________]                                                  │
-│ Proto  Addr       Port   PID    Mem(MB)  Process                        │
-│ TCP   0.0.0.0     80     1234   12.5     nginx.exe                      │
-│ TCP   0.0.0.0     443    1234   12.5     nginx.exe                      │
-│ TCP   127.0.0.1   3000   5678   45.2     node.exe               ←选中  │
-│ UDP   0.0.0.0     5353   999    1.8      svchost.exe                    │
-│                                                                          │
-│ [q]Quit [k]Kill [/]Filter [r]Refresh [↑↓]Nav [PgUp/PgDn]Jump           │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+- refreshes data every 10 seconds
+- supports filtering
+- can switch between ports view and processes view
+- can kill the selected PID
 
-顶部信息栏四栏布局：灯泡 Logo → 黄色渐变 ASCII art 标题 → 统计数据 → 炫彩 figlet 时钟。
+### JSON mode
 
-## 快捷键
+`--json` prints one snapshot and exits.
 
-| 按键 | 功能 |
-|------|------|
-| `↑` / `↓` | 上下移动选中行 |
-| `PageUp` / `PageDown` | 快速滚动 |
-| `/` | 进入过滤模式 |
-| `Enter` / `Esc` | 退出过滤模式 |
-| `k` | Kill 选中行对应的进程 |
-| `r` | 手动刷新端口列表 |
-| `q` | 退出程序 |
+### Server mode
 
-## 过滤
+`--serve <port>` starts a localhost HTTP service for IDE integrations.
 
-按 `/` 进入过滤模式后，输入内容会实时过滤列表，支持按以下字段搜索：
+### Native GUI
 
-- 端口号（如 `8080`）
-- PID（如 `1234`）
-- 进程名（如 `node`）
-- IP 地址（如 `127.0.0.1`）
-- 协议（如 `tcp` / `udp`）
+The `winportkill-gui` crate is an `eframe`/`egui` frontend over `winportkill-core`.
 
-## Kill 进程
+## IDE Integrations
 
-选中目标行后按 `k`，程序会终止对应 PID 的进程。
+### VS Code extension
 
-- 成功：底部状态栏显示绿色 `Killed PID xxx`
-- 失败：显示红色 `Failed to kill PID xxx (need admin?)` — 需要以管理员身份运行
-- 进程不存在：显示 `PID xxx not found`
+The VS Code extension lives under [.vscode-extension](./.vscode-extension).
 
-Kill 成功后列表会自动刷新。
+- runs as a webview sidebar
+- starts the bundled Rust sidecar binary from `.vscode-extension/bin/...`
+- talks to the sidecar over localhost HTTP
 
-## 刷新策略
+### JetBrains plugin
 
-- **时钟**：每秒更新（1s UI tick）
-- **进程列表**：每 10 秒自动刷新数据，也可按 `r` 手动刷新
+The JetBrains plugin lives under [jetbrains-plugin](./jetbrains-plugin).
+
+- provides a Tool Window UI
+- starts the same sidecar binary shape with `winportkill.exe --serve <port>`
+- uses a Kotlin HTTP client against the local sidecar
+
+## Documentation Index
+
+- [Project Architecture](./docs/project-architecture.en.md) | [项目架构](./docs/project-architecture.zh.md)
+- [Server Mode Guide](./docs/server-mode-guide.en.md) | [Server 模式指南](./docs/server-mode-guide.zh.md)
+- [VS Code Extension Guide](./docs/vscode-extension-guide.en.md) | [VS Code 扩展指南](./docs/vscode-extension-guide.zh.md)
+- [JetBrains Plugin Guide](./docs/jetbrains-plugin-guide.en.md) | [JetBrains 插件指南](./docs/jetbrains-plugin-guide.zh.md)
+- [egui GUI Guide](./docs/egui-gui-guide.en.md) | [egui GUI 指南](./docs/egui-gui-guide.zh.md)
+- [Port Layer Guide](./docs/port-rs-guide.en.md) | [端口层实现指南](./docs/port-rs-guide.zh.md)
+- [Ratatui Guide](./docs/ratatui-guide.en.md) | [Ratatui 指南](./docs/ratatui-guide.zh.md)
+
+## Known Boundaries
+
+- Actual inspection and kill flow is Windows-only.
+- Killing protected processes may require elevated privileges.
+- The VS Code extension and JetBrains plugin are IDE-specific shells around the same localhost sidecar model.
+- The native GUI and TUI call `winportkill-core` directly instead of going through HTTP.

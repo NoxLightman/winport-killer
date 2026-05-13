@@ -35,6 +35,8 @@ class SidecarManager(
 
         val port = pickFreePort()
         val binaryPath = resolveBinaryPath()
+        // The sidecar stays silent in the common case, so use the mostly-silent reader mode
+        // to avoid blocking on stdout while still capturing unexpected diagnostics.
         val handler = object : OSProcessHandler(
             GeneralCommandLine(binaryPath.toString(), "--serve", port.toString())
                 .withWorkDirectory(binaryPath.parent.toFile())
@@ -75,6 +77,8 @@ class SidecarManager(
     }
 
     private fun resolveBinaryPath(): Path {
+        // `runIde` points this property at the repo root so local development can reuse the
+        // already-built sidecar instead of copying from plugin resources on every launch.
         val devRoot = System.getProperty("winportkill.dev.root")
             ?.takeIf { it.isNotBlank() }
             ?.let { path -> Path.of(path) }
@@ -98,6 +102,8 @@ class SidecarManager(
     }
 
     private fun waitForHealth(apiClient: ApiClient) {
+        // The process is started asynchronously by the IDE, so poll the health endpoint before
+        // exposing the client to the rest of the plugin.
         val deadline = Instant.now().plus(Duration.ofSeconds(10))
         var lastError: Throwable? = null
 
