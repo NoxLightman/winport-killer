@@ -1,0 +1,19 @@
+<idea-plugin>
+    <id>dev.winportkill.jetbrains</id>
+    <name>WinPortKill</name>
+    <vendor email="local@winportkill.dev" url="https://example.invalid">local</vendor>
+
+    <description><![CDATA[
+        Inspect local Windows listening ports and processes inside JetBrains IDEs.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow
+                id="WinPortKill"
+                anchor="right"
+                canCloseContents="false"
+                factoryClass="dev.winportkill.jetbrains.toolwindow.WinPortKillToolWindowFactory"/>
+    </extensions>
+</idea-plugin>
