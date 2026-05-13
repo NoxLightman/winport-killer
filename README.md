@@ -93,8 +93,6 @@ The JetBrains plugin lives under [jetbrains-plugin](./jetbrains-plugin).
 - [VS Code Extension Guide](./docs/vscode-extension-guide.en.md) | [VS Code 扩展指南](./docs/vscode-extension-guide.zh.md)
 - [JetBrains Plugin Guide](./docs/jetbrains-plugin-guide.en.md) | [JetBrains 插件指南](./docs/jetbrains-plugin-guide.zh.md)
 - [egui GUI Guide](./docs/egui-gui-guide.en.md) | [egui GUI 指南](./docs/egui-gui-guide.zh.md)
-- [Port Layer Guide](./docs/port-rs-guide.en.md) | [端口层实现指南](./docs/port-rs-guide.zh.md)
-- [Ratatui Guide](./docs/ratatui-guide.en.md) | [Ratatui 指南](./docs/ratatui-guide.zh.md)
 
 ## Known Boundaries
 
