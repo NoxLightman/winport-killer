@@ -3,3 +3,4 @@
 .vscode-extension/node_modules
 .vscode-extension/dist
 .vscode-extension/bin
+/release-assets
